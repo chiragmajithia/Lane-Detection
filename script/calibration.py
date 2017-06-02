@@ -7,6 +7,25 @@ import glob
 
 global in_path,out_path,nx,ny,sqrEdgLen
 
+def parseArg(argv):
+	global in_path,out_path,nx,ny,sqrEdgLen
+	if(np.shape(argv)[0] < 2):
+		print "Error - Input Arguments Not Valid: Found " + str(np.shape(argv)[0]) + " Required 5"
+		help()
+		exit()
+	elif(np.shape(argv)[0] == 5):
+		in_path = argv[0]
+		out_path = argv[1]
+		nx = int(argv[2])
+		ny = int(argv[3])
+		sqrEdgLen = float(argv[4])
+	elif(np.shape(argv)[0] == 2):
+		in_path = argv[0]
+		out_path = argv[1]
+		nx = 9
+		ny = 6
+		sqrEdgLen = 30.0
+
 def help():
 	print "Input Arguments:\n1: Path to Calibration Images\n2: Path to Output Params\n3: Number of sqaures in X direction\n \
 	4: Number of sqaures in Y direction\n5: Length of Edge of each square"
@@ -20,7 +39,7 @@ def dispParams():
 
 def testFindCheckBoardCorners(img_no=2):
 	#Test function to generate corners from a checkboard image
-	global nx,ny,objpnts,imgpnts,sqrEdgLen
+	global nx,ny,sqrEdgLen
 	criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 	
 	print "intializing object points.."
@@ -50,8 +69,8 @@ def testFindCheckBoardCorners(img_no=2):
 	 	cv2.imshow("image",img);
 	 	cv2.waitKey(0)
 
-def init():
-	global nx,ny,objpnts,imgpnts,sqrEdgLen
+def getCorrespondences(vis=False):
+	global nx,ny,sqrEdgLen
 	criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 	
 	print "intializing object points.."
@@ -60,7 +79,9 @@ def init():
 	objpnts = np.zeros((nx*ny,3),dtype=np.float32)
 	objpnts[:,:2] = np.mgrid[0:nx,0:ny].T.reshape(-1,2)*sqrEdgLen
 
-	correspondance = []
+	img_points = []
+	obj_points = []
+
 	print "Loading Images from " + in_path
 	#Load Images
 	n_imgs = len(glob.glob(in_path+"*.jpg"))
@@ -79,37 +100,35 @@ def init():
 		if ret == True:
 	    # Draw and display the corners
 			corners2 = cv2.cornerSubPix(gray,corners,(11,11),(-1,-1),criteria)
-			correspondance.append([objpnts,corners2])
-			cv2.drawChessboardCorners(img, (nx, ny), corners, ret)
-			cv2.imshow("image",img);
-		 	cv2.waitKey(10)
-	return correspondance
+			img_points.append(corners2)
+			obj_points.append(objpnts)
+			if vis:
+				cv2.drawChessboardCorners(img, (nx, ny), corners, ret)
+				cv2.imshow("image",img)
+			 	cv2.waitKey(10)
+	return obj_points,img_points,img.shape[:2]
 
-def parseArg(argv):
-	global in_path,out_path,nx,ny,sqrEdgLen
-	if(np.shape(argv)[0] < 2):
-		print "Error - Input Arguments Not Valid: Found " + str(np.shape(argv)[0]) + " Required 5"
-		help()
-		exit()
-	elif(np.shape(argv)[0] == 5):
-		in_path = argv[0]
-		out_path = argv[1]
-		nx = int(argv[2])
-		ny = int(argv[3])
-		sqrEdgLen = float(argv[4])
-	elif(np.shape(argv)[0] == 2):
-		in_path = argv[0]
-		out_path = argv[1]
-		nx = 9
-		ny = 6
-		sqrEdgLen = 30.0
+def getCameraMatrix():
+	objpoints,imgpoints,img_size = getCorrespondences(False);
+	err, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, img_size,None,None)
+	return mtx,dist
+
+def undistort(img,mtx,dist,img_size):
+	#generate undistorted version of a image img.
+	nmtx, roi=cv2.getOptimalNewCameraMatrix(mtx,dist,img_size,1,img_size)
+	cv2.imshow('undistorted image',cv2.undistort(img,mtx,dist,None,nmtx))
+	cv2.waitKey(0)
 
 def main(argv):
 	parseArg(argv)
 	print "Parsed command line input:"
 	dispParams()
 	#testFindCheckBoardCorners(2)
-	print np.asarray(init())
+	objpoints,imgpoints,img_size = getCorrespondences(False);
+	ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, img_size,None,None)
+	fname = in_path+'calibration{}.jpg'.format(1)
+	img = cv2.imread(fname)
+	undistort(img,mtx,dist,img_size)
 
 if __name__ == '__main__':
 	main(sys.argv[1:])
