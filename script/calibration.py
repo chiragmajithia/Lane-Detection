@@ -4,6 +4,8 @@ import  numpy as np
 import cv2
 from matplotlib import pyplot as plt
 import glob
+import json
+
 
 global in_path,out_path,nx,ny,sqrEdgLen
 
@@ -129,6 +131,13 @@ def main(argv):
 	fname = in_path+'calibration{}.jpg'.format(1)
 	img = cv2.imread(fname)
 	undistort(img,mtx,dist,img_size)
+	
+	data = {'cam_params':mtx.tolist(),'dist_params':dist.tolist()}
+	with open(out_path+'camera_params','w') as file:
+		json.dump(data,file)
+
+	print mtx,dist
+
 
 if __name__ == '__main__':
 	main(sys.argv[1:])
